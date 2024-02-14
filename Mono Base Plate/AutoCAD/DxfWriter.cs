@@ -21,20 +21,20 @@ namespace Mono_Base_Plate.AutoCAD
             var centerPoint = new Vector3(0, 0, 0);
 
             //Draw Pedestal
-            var polyline = new Polyline
+            var polyline = new Polyline2D()
             {
                 Color = AciColor.Magenta
             };
             polyline.Vertexes.AddRange(CreateRectangle(centerPoint, basePlateInput.Np, basePlateInput.Bp));
-            dxfDocument.AddEntity(polyline);
+            dxfDocument.Entities.Add(polyline);
 
             //Draw Base Plate
-            polyline = new Polyline
-            {
+            polyline = new Polyline2D
+			{
                 Color = AciColor.Red
             };
             polyline.Vertexes.AddRange(CreateRectangle(centerPoint, basePlateInput.N, basePlateInput.B));
-            dxfDocument.AddEntity(polyline);
+            dxfDocument.Entities.Add(polyline);
 
             //Draw Rebars
             var left = -basePlateInput.Np / 2 + basePlateInput.Cover;
@@ -53,14 +53,14 @@ namespace Mono_Base_Plate.AutoCAD
                         var center = new Vector3(centerPoint.X + left + i * xStep, centerPoint.Y + top + j * yStep, centerPoint.Z);
                         circle = new Circle(center, basePlateInput.dr / 2) { Color = AciColor.Blue };
 
-                        dxfDocument.AddEntity(circle);
+                        dxfDocument.Entities.Add(circle);
                     }
                     else if (j == 0 || j == basePlateInput.nrB - 1)
                     {
                         var center = new Vector3(centerPoint.X + left + i * xStep, centerPoint.Y + top + j * yStep, centerPoint.Z);
                         circle = new Circle(center, basePlateInput.dr / 2) { Color = AciColor.Blue };
 
-                        dxfDocument.AddEntity(circle);
+                        dxfDocument.Entities.Add(circle);
                     }
                 }
             }
@@ -85,30 +85,30 @@ namespace Mono_Base_Plate.AutoCAD
                         {
                             Color = AciColor.Red
                         };
-                        dxfDocument.AddEntity(circle);
+                        dxfDocument.Entities.Add(circle);
 
                         //Draw Cap Bolt
-                        polyline = new Polyline
-                        {
+                        polyline = new Polyline2D
+						{
                             Color = AciColor.Cyan
                         };
                         polyline.Vertexes.AddRange(CreateHexagonal(center, basePlateInput.AnchorBolt.S));
-                        dxfDocument.AddEntity(polyline);
+                        dxfDocument.Entities.Add(polyline);
 
                         //Draw Sleeve
                         circle = new Circle(center, basePlateInput.AnchorBolt.D / 2)
                         {
                             Color = AciColor.DarkGray
                         };
-                        dxfDocument.AddEntity(circle);
+                        dxfDocument.Entities.Add(circle);
 
                         //Draw Cap Plate
-                        polyline = new Polyline
-                        {
+                        polyline = new Polyline2D
+						{
                             Color = AciColor.LightGray
                         };
                         polyline.Vertexes.AddRange(CreateRectangle(center, basePlateInput.AnchorBolt.W, basePlateInput.AnchorBolt.W));
-                        dxfDocument.AddEntity(polyline);
+                        dxfDocument.Entities.Add(polyline);
                     }
                     else if (j == 0 || j == basePlateInput.nbN - 1)
                     {
@@ -119,41 +119,41 @@ namespace Mono_Base_Plate.AutoCAD
                         {
                             Color = AciColor.Red
                         };
-                        dxfDocument.AddEntity(circle);
+                        dxfDocument.Entities.Add(circle);
 
                         //Draw Cap Bolt
-                        polyline = new Polyline
-                        {
+                        polyline = new Polyline2D
+						{
                             Color = AciColor.Cyan
                         };
                         polyline.Vertexes.AddRange(CreateHexagonal(center, basePlateInput.AnchorBolt.S));
-                        dxfDocument.AddEntity(polyline);
+                        dxfDocument.Entities.Add(polyline);
 
                         //Draw Sleeve
                         circle = new Circle(center, basePlateInput.AnchorBolt.D / 2)
                         {
                             Color = AciColor.DarkGray
                         };
-                        dxfDocument.AddEntity(circle);
+                        dxfDocument.Entities.Add(circle);
 
                         //Draw Cap Plate
-                        polyline = new Polyline
-                        {
+                        polyline = new Polyline2D
+						{
                             Color = AciColor.LightGray
                         };
                         polyline.Vertexes.AddRange(CreateRectangle(center, basePlateInput.AnchorBolt.W, basePlateInput.AnchorBolt.W));
-                        dxfDocument.AddEntity(polyline);
+                        dxfDocument.Entities.Add(polyline);
                     }
                 }
             }
 
-            polyline = new Polyline
-            {
+            polyline = new Polyline2D
+			{
                 Color = AciColor.Yellow
             };
 
             polyline.Vertexes.AddRange(CreateSection(centerPoint, basePlateInput.Sec));
-            dxfDocument.AddEntity(polyline);
+            dxfDocument.Entities.Add(polyline);
 
             var dimensionStyle = new DimensionStyle("Stand")
             {
@@ -183,7 +183,7 @@ namespace Mono_Base_Plate.AutoCAD
                 FirstReferencePoint = new Vector2(centerPoint.X - basePlateInput.Np / 2, centerPoint.Y + basePlateInput.Bp / 2 + offset),
                 SecondReferencePoint = new Vector2(centerPoint.X + basePlateInput.Np / 2, centerPoint.Y + basePlateInput.Bp / 2 + offset)
             };
-            dxfDocument.AddEntity(linearDimension);
+            dxfDocument.Entities.Add(linearDimension);
 
             //Draw (Vertical) Pedestal Dimension
             linearDimension = new LinearDimension
@@ -194,7 +194,7 @@ namespace Mono_Base_Plate.AutoCAD
                 FirstReferencePoint = new Vector2(centerPoint.X - basePlateInput.Np / 2 - offset, centerPoint.Y - basePlateInput.Bp / 2),
                 SecondReferencePoint = new Vector2(centerPoint.X - basePlateInput.Np / 2 - offset, centerPoint.Y + basePlateInput.Bp / 2)
             };
-            dxfDocument.AddEntity(linearDimension);
+            dxfDocument.Entities.Add(linearDimension);
 
             //Draw (Horizontal) Base Plate Dimension
             linearDimension = new LinearDimension
@@ -205,7 +205,7 @@ namespace Mono_Base_Plate.AutoCAD
                 FirstReferencePoint = new Vector2(centerPoint.X - basePlateInput.N / 2, centerPoint.Y + basePlateInput.Bp / 2 + offset / 2),
                 SecondReferencePoint = new Vector2(centerPoint.X + basePlateInput.N / 2, centerPoint.Y + basePlateInput.Bp / 2 + offset / 2)
             };
-            dxfDocument.AddEntity(linearDimension);
+            dxfDocument.Entities.Add(linearDimension);
 
             //Draw (Horizontal) Base Plate Dimension
             linearDimension = new LinearDimension
@@ -216,7 +216,7 @@ namespace Mono_Base_Plate.AutoCAD
                 FirstReferencePoint = new Vector2(centerPoint.X - basePlateInput.Np / 2 - offset / 2, centerPoint.Y - basePlateInput.B / 2),
                 SecondReferencePoint = new Vector2(centerPoint.X - basePlateInput.Np / 2 - offset / 2, centerPoint.Y + basePlateInput.B / 2)
             };
-            dxfDocument.AddEntity(linearDimension);
+            dxfDocument.Entities.Add(linearDimension);
 
             TextStyle textStyle = null;
             foreach (var style in dxfDocument.TextStyles)
@@ -227,82 +227,82 @@ namespace Mono_Base_Plate.AutoCAD
             
             //Drawing Text Information
             centerPoint.Y = centerPoint.Y - basePlateInput.Bp / 2 - 15;
-            dxfDocument.AddEntity(CreateText(textStyle, $"Bolt:{basePlateInput.nb}{basePlateInput.AnchorBolt.Name} {basePlateInput.AnchorBolt.Projection(basePlateInput.GroutThickness, designResult.t_req)}", AciColor.Magenta, centerPoint));
+            dxfDocument.Entities.Add(CreateText(textStyle, $"Bolt:{basePlateInput.nb}{basePlateInput.AnchorBolt.Name} {basePlateInput.AnchorBolt.Projection(basePlateInput.GroutThickness, designResult.t_req)}", AciColor.Magenta, centerPoint));
 
             centerPoint.Y -= 8;
-            dxfDocument.AddEntity(CreateText(textStyle, $"Section:{basePlateInput.Sec.Name}", AciColor.Magenta, centerPoint));
+            dxfDocument.Entities.Add(CreateText(textStyle, $"Section:{basePlateInput.Sec.Name}", AciColor.Magenta, centerPoint));
 
             centerPoint.Y -= 8;
-            dxfDocument.AddEntity(CreateText(textStyle, $"THK:{(designResult.t_req * 10)} mm", AciColor.Magenta, centerPoint));
+            dxfDocument.Entities.Add(CreateText(textStyle, $"THK:{(designResult.t_req * 10)} mm", AciColor.Magenta, centerPoint));
 
             centerPoint.Y -= 8;
-            dxfDocument.AddEntity(CreateText(textStyle, $"Main Rebars:{basePlateInput.nrN}X{basePlateInput.nrB}Φ{(basePlateInput.dr)}", AciColor.Magenta, centerPoint));
+            dxfDocument.Entities.Add(CreateText(textStyle, $"Main Rebars:{basePlateInput.nrN}X{basePlateInput.nrB}Φ{(basePlateInput.dr)}", AciColor.Magenta, centerPoint));
             
             centerPoint.Y -= 8;
-            dxfDocument.AddEntity(CreateText(textStyle, $"Stirrups:Φ{(basePlateInput.drs * 10)}@{(basePlateInput.rsS * 10)} mm", AciColor.Magenta, centerPoint));
+            dxfDocument.Entities.Add(CreateText(textStyle, $"Stirrups:Φ{(basePlateInput.drs * 10)}@{(basePlateInput.rsS * 10)} mm", AciColor.Magenta, centerPoint));
 
 
             centerPoint.Y -= 8;
-            dxfDocument.AddEntity(CreateText(textStyle, $"Stiffener:{(basePlateInput.StiffnerType == 0 ? "Not Required" : "Required")}", AciColor.Magenta, centerPoint));
+            dxfDocument.Entities.Add(CreateText(textStyle, $"Stiffener:{(basePlateInput.StiffnerType == 0 ? "Not Required" : "Required")}", AciColor.Magenta, centerPoint));
 
             dxfDocument.Save(FileName);
         }
 
-        private static IEnumerable<PolylineVertex> CreateRectangle(Vector3 centerPoint, double width, double height)
+        private static IEnumerable<Polyline2DVertex> CreateRectangle(Vector3 centerPoint, double width, double height)
         {
-            var polylineVertices = new List<PolylineVertex>
+            var polylineVertices = new List<Polyline2DVertex>
             {
-                new PolylineVertex(centerPoint.X - width / 2, centerPoint.Y - height / 2, centerPoint.Z),
-                new PolylineVertex(centerPoint.X + width / 2, centerPoint.Y - height / 2, centerPoint.Z),
-                new PolylineVertex(centerPoint.X + width / 2, centerPoint.Y + height / 2, centerPoint.Z),
-                new PolylineVertex(centerPoint.X - width / 2, centerPoint.Y + height / 2, centerPoint.Z),
-                new PolylineVertex(centerPoint.X - width / 2, centerPoint.Y - height / 2, centerPoint.Z)
+                new Polyline2DVertex(centerPoint.X - width / 2, centerPoint.Y - height / 2, centerPoint.Z),
+                new Polyline2DVertex(centerPoint.X + width / 2, centerPoint.Y - height / 2, centerPoint.Z),
+                new Polyline2DVertex(centerPoint.X + width / 2, centerPoint.Y + height / 2, centerPoint.Z),
+                new Polyline2DVertex(centerPoint.X - width / 2, centerPoint.Y + height / 2, centerPoint.Z),
+                new Polyline2DVertex(centerPoint.X - width / 2, centerPoint.Y - height / 2, centerPoint.Z)
             };
             
             return polylineVertices;
         }
 
-        private static IEnumerable<PolylineVertex> CreateHexagonal(Vector3 centerPoint, double length, double defaultAngle = 0)
+        private static IEnumerable<Polyline2DVertex> CreateHexagonal(Vector3 centerPoint, double length, double defaultAngle = 0)
         {
             return CreatePolynomial(centerPoint, length, 6, defaultAngle);
         }
 
-        private static IEnumerable<PolylineVertex> CreatePolynomial(Vector3 centerPoint, double length, int sides, double defaultAngle = 0)
+        private static IEnumerable<Polyline2DVertex> CreatePolynomial(Vector3 centerPoint, double length, int sides, double defaultAngle = 0)
         {
             var angle = 2 * Math.PI / sides;
-            var polylineVertexList = new List<PolylineVertex>();
+            var Polyline2DVertexList = new List<Polyline2DVertex>();
 
             defaultAngle += angle / 2;
             length = (length / 2) / Math.Cos(defaultAngle);
             
             for (var i = 0; i <= sides; i++)
             {
-                polylineVertexList.Add(new PolylineVertex(centerPoint.X + length * Math.Cos(angle * i), centerPoint.Y + length * Math.Sin(angle * i), centerPoint.Z));
+                Polyline2DVertexList.Add(new Polyline2DVertex(centerPoint.X + length * Math.Cos(angle * i), centerPoint.Y + length * Math.Sin(angle * i), centerPoint.Z));
             }
 
-            return polylineVertexList;
+            return Polyline2DVertexList;
         }
 
-        private static IEnumerable<PolylineVertex> CreateSection(Vector3 centerPoint, SectionI section)
+        private static IEnumerable<Polyline2DVertex> CreateSection(Vector3 centerPoint, SectionI section)
         {
-            var polylineVertexList = new List<PolylineVertex>
+            var Polyline2DVertexList = new List<Polyline2DVertex>
             {
-                new PolylineVertex(centerPoint.X - section.h / 2, centerPoint.Y - section.bf / 2, centerPoint.Z),           //01
-                new PolylineVertex(centerPoint.X - section.h / 2 + section.tf, centerPoint.Y - section.bf / 2, centerPoint.Z),  //02
-                new PolylineVertex(centerPoint.X - section.h / 2 + section.tf, centerPoint.Y - section.tw / 2, centerPoint.Z),  //03
-                new PolylineVertex(centerPoint.X + section.h / 2 - section.tf, centerPoint.Y - section.tw / 2, centerPoint.Z),  //04
-                new PolylineVertex(centerPoint.X + section.h / 2 - section.tf, centerPoint.Y - section.bf / 2, centerPoint.Z),  //05
-                new PolylineVertex(centerPoint.X + section.h / 2, centerPoint.Y - section.bf / 2, centerPoint.Z),           //06
-                new PolylineVertex(centerPoint.X + section.h / 2, centerPoint.Y + section.bf / 2, centerPoint.Z),           //07
-                new PolylineVertex(centerPoint.X + section.h / 2 - section.tf, centerPoint.Y + section.bf / 2, centerPoint.Z),  //08
-                new PolylineVertex(centerPoint.X + section.h / 2 - section.tf, centerPoint.Y + section.tw / 2, centerPoint.Z),  //09
-                new PolylineVertex(centerPoint.X - section.h / 2 + section.tf, centerPoint.Y + section.tw / 2, centerPoint.Z),  //10
-                new PolylineVertex(centerPoint.X - section.h / 2 + section.tf, centerPoint.Y + section.bf / 2, centerPoint.Z),  //11
-                new PolylineVertex(centerPoint.X - section.h / 2, centerPoint.Y + section.bf / 2, centerPoint.Z),           //12
-                new PolylineVertex(centerPoint.X - section.h / 2, centerPoint.Y - section.bf / 2, centerPoint.Z)            //13, 1
+                new Polyline2DVertex(centerPoint.X - section.h / 2, centerPoint.Y - section.bf / 2, centerPoint.Z),           //01
+                new Polyline2DVertex(centerPoint.X - section.h / 2 + section.tf, centerPoint.Y - section.bf / 2, centerPoint.Z),  //02
+                new Polyline2DVertex(centerPoint.X - section.h / 2 + section.tf, centerPoint.Y - section.tw / 2, centerPoint.Z),  //03
+                new Polyline2DVertex(centerPoint.X + section.h / 2 - section.tf, centerPoint.Y - section.tw / 2, centerPoint.Z),  //04
+                new Polyline2DVertex(centerPoint.X + section.h / 2 - section.tf, centerPoint.Y - section.bf / 2, centerPoint.Z),  //05
+                new Polyline2DVertex(centerPoint.X + section.h / 2, centerPoint.Y - section.bf / 2, centerPoint.Z),           //06
+                new Polyline2DVertex(centerPoint.X + section.h / 2, centerPoint.Y + section.bf / 2, centerPoint.Z),           //07
+                new Polyline2DVertex(centerPoint.X + section.h / 2 - section.tf, centerPoint.Y + section.bf / 2, centerPoint.Z),  //08
+                new Polyline2DVertex(centerPoint.X + section.h / 2 - section.tf, centerPoint.Y + section.tw / 2, centerPoint.Z),  //09
+                new Polyline2DVertex(centerPoint.X - section.h / 2 + section.tf, centerPoint.Y + section.tw / 2, centerPoint.Z),  //10
+                new Polyline2DVertex(centerPoint.X - section.h / 2 + section.tf, centerPoint.Y + section.bf / 2, centerPoint.Z),  //11
+                new Polyline2DVertex(centerPoint.X - section.h / 2, centerPoint.Y + section.bf / 2, centerPoint.Z),           //12
+                new Polyline2DVertex(centerPoint.X - section.h / 2, centerPoint.Y - section.bf / 2, centerPoint.Z)            //13, 1
             };
 
-            return polylineVertexList.ToArray();
+            return Polyline2DVertexList.ToArray();
         }
 
         private static Text CreateText(TextStyle textStyle, string textValue, AciColor color, Vector3 leftPosition)

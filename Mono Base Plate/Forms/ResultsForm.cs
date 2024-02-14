@@ -36,9 +36,9 @@ namespace Mono_Base_Plate.Forms
                 dgvResults.Rows[i].Cells[colRow.Index].Value = i + 1;
 
                 dgvResults.Rows[i].Cells[colCombination.Index].Value = LoadsList[i].Name;
-                dgvResults.Rows[i].Cells[colPu.Index].Value = $"{LoadsList[i].Pu / 1000:N2}";
-                dgvResults.Rows[i].Cells[colVu.Index].Value = $"{LoadsList[i].Vux / 1000:N2}";
-                dgvResults.Rows[i].Cells[colMu.Index].Value = $"{LoadsList[i].Muy / 1000 / 100:N2}";
+                dgvResults.Rows[i].Cells[colPu.Index].Value = Math.Round(LoadsList[i].Pu / 1000, 2);
+                dgvResults.Rows[i].Cells[colVu.Index].Value = Math.Round(LoadsList[i].Vux / 1000, 2);
+                dgvResults.Rows[i].Cells[colMu.Index].Value = Math.Round(LoadsList[i].Muy / 1000, 2);
 
                 dgvResults.Rows[i].Cells[colThickness.Index].Value = Math.Round(DesignResults[i].t, 3);
                 dgvResults.Rows[i].Cells[colBoltRatio.Index].Value = Math.Round(DesignResults[i].BoltRatio, 3);

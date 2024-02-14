@@ -17,16 +17,22 @@ using Base_Plate_Engine.Common.Materials;
 using Base_Plate_Engine.Common.Section.Interfaces;
 using Base_Plate_Engine.Common.Section.Shapes;
 using Base_Plate_Engine.Design;
+using DocumentFormat.OpenXml.ExtendedProperties;
 using EngineeringUnits;
 using EngineeringUnits.Units;
 using Mono_Base_Plate.AutoCAD;
 using Mono_Base_Plate.Class;
 using Mono_Base_Plate.Controls;
 using Mono_Base_Plate.Factory;
+using Mono_Base_Plate.Save;
 using Newtonsoft.Json;
+using static System.Net.WebRequestMethods;
 using AnchorBolt = Base_Plate_Engine.Common.AnchorBolt;
 using Application = System.Windows.Forms.Application;
 using BasePlateLoad = Base_Plate_Engine.Design.BasePlateLoad;
+using File = System.IO.File;
+using RebarMaterial = Base_Plate_Engine.Common.Materials.RebarMaterial;
+using SteelMaterial = Mono_Base_Plate.Save.SteelMaterial;
 
 namespace Mono_Base_Plate.Forms
 {
@@ -60,6 +66,9 @@ namespace Mono_Base_Plate.Forms
         //public static frmMain FormMain = new frmMain();
         //public static frmInteractiveCurve FormInteractiveCurve = new frmInteractiveCurve();
 
+        private const string UserDefined = "User Defined";
+
+        private Mojk.HTML.HtmlDocument report1;
 
         #endregion
 
@@ -74,20 +83,32 @@ namespace Mono_Base_Plate.Forms
         {
             SectionIndex = 24;
 
-            cboSteelMaterial.Items.Clear();
-            cboSteelMaterial.Items.AddRange(SteelMaterialFactory.Items.Select(p => (object)p.Name).ToArray());
-            cboSteelMaterial.SelectedItem = SteelMaterialFactory.Items.Single(p => p.Name == "S235 t≤t16mm").Name;
+            cboPlateSteelMaterial.Items.Clear();
+            cboPlateSteelMaterial.Items.AddRange(SteelMaterialFactory.Items.Select(p => (object)p.Name).ToArray());
+            cboPlateSteelMaterial.SelectedItem = SteelMaterialFactory.Items.Single(p => p.Name == "ST37").Name;
 
-            cboRebarMaterial.Items.Clear();
-            cboRebarMaterial.Items.AddRange(RebarMaterialFactory.Items.Select(p => (object)p.Name).ToArray());
-            cboRebarMaterial.SelectedItem = RebarMaterialFactory.Items[1].Name;
-            
+            cboColumnSteelMaterial.Items.Clear();
+            cboColumnSteelMaterial.Items.AddRange(SteelMaterialFactory.Items.Select(p => (object)p.Name).ToArray());
+            cboColumnSteelMaterial.SelectedItem = SteelMaterialFactory.Items.Single(p => p.Name == "ST37").Name;
+
+            cboLongitudinalRebarMaterial.Items.Clear();
+            cboLongitudinalRebarMaterial.Items.AddRange(RebarMaterialFactory.Items.Select(p => (object)p.Name).ToArray());
+            cboLongitudinalRebarMaterial.SelectedItem = RebarMaterialFactory.Items[1].Name;
+
+            cboTransverseRebarMaterial.Items.Clear();
+            cboTransverseRebarMaterial.Items.AddRange(RebarMaterialFactory.Items.Select(p => (object)p.Name).ToArray());
+            cboTransverseRebarMaterial.SelectedItem = RebarMaterialFactory.Items[1].Name;
 
             cboBolts.Items.AddRange(AnchorBoltFactory.Items.Select(p => p.Name).Cast<object>().ToArray());
 
             cboAnchorBoltMaterial.Items.Clear();
             cboAnchorBoltMaterial.Items.AddRange(AnchorBoltMaterialFactory.Items.Select(p => p.Name).Cast<object>().ToArray());
-            cboAnchorBoltMaterial.SelectedIndex = 0;
+            cboAnchorBoltMaterial.Items.Add(UserDefined);
+            cboAnchorBoltMaterial.SelectedItem = AnchorBoltMaterialFactory.Items.SingleOrDefault(p => p.Name == "F1554 Gr.36")?.Name;
+
+            cboWeldMaterial.Items.Clear();
+            cboWeldMaterial.Items.AddRange(WeldMaterialFactory.Items.Select(p => p.Name).Cast<object>().ToArray());
+            cboWeldMaterial.SelectedIndex = 0;
 
             cboColumnSection.Items.AddRange(SectionIFactory.Items.Select(p => p.Name).Cast<object>().ToArray());
             cboColumnSection.SelectedItem = SectionIFactory.Items[SectionIndex].Name;
@@ -399,7 +420,7 @@ namespace Mono_Base_Plate.Forms
             cboWeldCheck.Enabled = rdoWeldFilletWeld.Checked;
             txtWeldSizeBasePlate.Enabled = rdoWeldFilletWeld.Checked;
             txtWeldSizeShearKey.Enabled = rdoWeldFilletWeld.Checked;
-            txt_fuw.Enabled = rdoWeldFilletWeld.Checked;
+            cboWeldMaterial.Enabled = rdoWeldFilletWeld.Checked;
 
             RunDesign();
         }
@@ -590,41 +611,51 @@ namespace Mono_Base_Plate.Forms
                 errorList.Add($"\'{txt_fc.Text}' is illegal value for parameter 'Concrete Strength, f'c'");
             }
 
-            var fyr = 0.0;
-            if (double.TryParse(txt_fyr.Text, out x) && x is > 2000 and < 5200)
-            {
-                fyr = Pressure
-                    .From(x, PressureUnit.KilogramForcePerSquareCentimeter)
-                    .As(pressureUnit);
-            }
-            else
-            {
-                errorList.Add($"'{txt_fyr.Text}' is illegal value for parameter 'Longitudinal Rebars Yield Strength, Fyb'");
-            }
+            var fyr = RebarMaterialFactory.Items.Single(p => p.Name == cboLongitudinalRebarMaterial.SelectedItem.ToString()).Fy;
+            fyr = Pressure
+                .From(fyr, PressureUnit.Megapascal)
+                .As(pressureUnit);
+            //if (double.TryParse(txt_fyr.Text, out x) && x is > 2000 and < 5200)
+            //{
+            //    fyr = Pressure
+            //        .From(x, PressureUnit.KilogramForcePerSquareCentimeter)
+            //        .As(pressureUnit);
+            //}
+            //else
+            //{
+            //    errorList.Add($"'{txt_fyr.Text}' is illegal value for parameter 'Longitudinal Rebars Yield Strength, Fyb'");
+            //}
 
-            var fyrs = 0.0;
-            if (double.TryParse(txt_fyrs.Text, out x) && x is > 2000 and < 5200)
-            {
-               fyrs = Pressure
-                    .From(x, PressureUnit.KilogramForcePerSquareCentimeter)
-                    .As(pressureUnit);
-            }
-            else
-            {
-                errorList.Add("\'" + txt_fyrs.Text + "\' is illegal value for parameter \'Longitudinal Rebars Yield Strength, Fyb\'");
-            }
+            var fyrs = RebarMaterialFactory.Items.Single(p => p.Name == cboTransverseRebarMaterial.SelectedItem.ToString()).Fy;
+            fyrs = Pressure
+                .From(fyrs, PressureUnit.Megapascal)
+                .As(pressureUnit);
 
-            var fyp = 0.0;
-            if (double.TryParse(txt_fyp.Text, out x) && x is > 2000 and < 4000)
-            {
-                fyp = Pressure
-                    .From(x, PressureUnit.KilogramForcePerSquareCentimeter)
-                    .As(pressureUnit);
-            }
-            else
-            {
-                errorList.Add("\'" + txt_fyp.Text + "\' is illegal value for parameter \'Yield Strength, Fyp\'");
-            }
+            //if (double.TryParse(txt_fyrs.Text, out x) && x is > 2000 and < 5200)
+            //{
+            //   fyrs = Pressure
+            //        .From(x, PressureUnit.KilogramForcePerSquareCentimeter)
+            //        .As(pressureUnit);
+            //}
+            //else
+            //{
+            //    errorList.Add("\'" + txt_fyrs.Text + "\' is illegal value for parameter \'Longitudinal Rebars Yield Strength, Fyb\'");
+            //}
+
+            var fyp = SteelMaterialFactory.Items.Single(p => p.Name == cboPlateSteelMaterial.SelectedItem.ToString()).Fy;
+            fyp = Pressure
+                .From(fyp, PressureUnit.Megapascal)
+                .As(pressureUnit);
+            //if (double.TryParse(txt_fyp.Text, out x) && x is > 2000 and < 4000)
+            //{
+            //    fyp = Pressure
+            //        .From(x, PressureUnit.KilogramForcePerSquareCentimeter)
+            //        .As(pressureUnit);
+            //}
+            //else
+            //{
+            //    errorList.Add("\'" + txt_fyp.Text + "\' is illegal value for parameter \'Yield Strength, Fyp\'");
+            //}
 
             var Es = 0.0;
             if (double.TryParse(txt_Es.Text, out x) && x is > 2000000 and < 2500000)
@@ -639,17 +670,20 @@ namespace Mono_Base_Plate.Forms
                 errorList.Add("\'" + txt_Es.Text + "\' is illegal value for parameter \'Modulus of Elasticity, Es\'");
             }
 
-            var fyc = 0.0;
-            if (double.TryParse(txt_fyc.Text, out x) && x is > 2000 and < 4000)
-            {
-               fyc = Pressure
-                    .From(x, PressureUnit.KilogramForcePerSquareCentimeter)
-                    .As(pressureUnit);
-            }
-            else
-            {
-                errorList.Add("\'" + txt_fyc.Text + "\' is illegal value for parameter \'Steel Strength, Fyc\'");
-            }
+            var fyc = SteelMaterialFactory.Items.Single(p => p.Name == cboPlateSteelMaterial.SelectedItem.ToString()).Fy;
+            fyc = Pressure
+                .From(fyc, PressureUnit.Megapascal)
+                .As(pressureUnit);
+            //if (double.TryParse(txt_fyc.Text, out x) && x is > 2000 and < 4000)
+            //{
+            //   fyc = Pressure
+            //        .From(x, PressureUnit.KilogramForcePerSquareCentimeter)
+            //        .As(pressureUnit);
+            //}
+            //else
+            //{
+            //    errorList.Add("\'" + txt_fyc.Text + "\' is illegal value for parameter \'Steel Strength, Fyc\'");
+            //}
 
             var fyb = 0.0;
             if (double.TryParse(txt_fyb.Text, out x) && x is > 1000 and < 10000)
@@ -947,7 +981,7 @@ namespace Mono_Base_Plate.Forms
                             errorList.Add("Shear Properties are not valid!");
                         }
 
-                       ShearKeySection = tube;
+                        ShearKeySection = tube;
                     }
                     catch
                     {
@@ -978,27 +1012,41 @@ namespace Mono_Base_Plate.Forms
 
             //Welding
             var WeldType = Base_Plate_Engine.Design.WeldType.CJP;
-            var Betta_Weld = 0.0;
-            var Fuw = 0.0;
-            var WeldSzie_BasePlate = 0.0;
-            var WeldSize_ShearKey = 0.0;
+            double Betta_Weld;
+            double Fuw;
+            double WeldSzie_BasePlate;
+            double WeldSize_ShearKey;
             if (rdoWeldCJP.Checked)
             {
                WeldType = WeldType.CJP;
+               Betta_Weld = 0.0;
+               Fuw = 0.0;
+               WeldSzie_BasePlate = 0.0;
+               WeldSize_ShearKey = 0.0;
             }
             else if (rdoWeldFilletWeld.Checked)
             {
-               WeldType = WeldType.Fillet;
+                WeldType = WeldType.Fillet;
 
-               Betta_Weld = Convert.ToDouble(cboWeldCheck.SelectedItem.ToString());
-               Fuw = Convert.ToDouble(txt_fuw.Text);
+                Betta_Weld = Convert.ToDouble(cboWeldCheck.SelectedItem.ToString());
 
-               WeldSzie_BasePlate = Convert.ToDouble(txtWeldSizeBasePlate.Text) / 10.0;
-               WeldSize_ShearKey = Convert.ToDouble(txtWeldSizeShearKey.Text) / 10.0;
+                //Fuw = Convert.ToDouble(txt_fuw.Text);
+                Fuw = WeldMaterialFactory.Items.Single(p => p.Name == cboWeldMaterial.SelectedItem.ToString()).Fu;
+                Fuw = Pressure
+                    .From(Fuw, PressureUnit.Megapascal)
+                    .As(pressureUnit);
+
+                WeldSzie_BasePlate = Length
+                    .From(Convert.ToDouble(txtWeldSizeBasePlate.Text), LengthUnit.Millimeter)
+                    .As(lengthUnit);
+                
+                WeldSize_ShearKey = Length
+                    .From(Convert.ToDouble(txtWeldSizeShearKey.Text), LengthUnit.Millimeter)
+                    .As(lengthUnit);
             }
             else
             {
-                errorList.Add("Please select welding type!");
+                throw new Exception("Please select welding type!");
             }
 
             if (rdoStiffnerType2.Checked || rdoStiffnerType3.Checked)
@@ -1012,9 +1060,6 @@ namespace Mono_Base_Plate.Forms
 
             var basePlateDesign = BasePlateDesign.AISC360_10;
             var anchorBoltAndPedestalDesign = AnchorBoltAndPedestalDesignMethod.ACI318_14;
-
-            var Fnw_BP = 0.0;
-            var Fnw_SK = 0.0;
 
             var input = new BasePlateInput(
                 designMethod: designMethod,
@@ -1048,8 +1093,6 @@ namespace Mono_Base_Plate.Forms
                 nrN: nrN,
                 nrB: nrB,
                 nrS: nrS,
-                fnwBp: Fnw_BP,
-                fnwSk: Fnw_SK,
                 fuw: Fuw,
                 weldSzieBasePlate: WeldSzie_BasePlate,
                 weldSizeShearKey: WeldSize_ShearKey,
@@ -1244,16 +1287,23 @@ namespace Mono_Base_Plate.Forms
             }
 
             BasePlateInput basePlateInput;
-            IList<BasePlateLoad> LoadsList;
+            IList<BasePlateLoad> loadsList;
             try
             {
                 basePlateInput = GetInputData(out var errors1, out var warnings1);
-                LoadsList = GetLoads(out var errors2, out var warnings2);
-                ErrorCheck(basePlateInput, LoadsList, out var errors3, out var warnings3);
+                loadsList = GetLoads(out var errors2, out var warnings2);
+                ErrorCheck(basePlateInput, loadsList, out var errors3, out var warnings3);
                 DoDraw(basePlateInput);
 
-                errors = errors1.Union(errors2).Union(errors3).ToArray();
-                warnings = warnings1.Union(warnings2).Union(warnings3).ToArray();
+                errors = errors1
+	                .Union(errors2)
+	                .Union(errors3)
+	                .ToArray();
+
+                warnings = warnings1
+	                .Union(warnings2)
+	                .Union(warnings3)
+	                .ToArray();
             }
             catch (Exception ex)
             {
@@ -1279,13 +1329,13 @@ namespace Mono_Base_Plate.Forms
 
             //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
             var columnBase = new ColumnBase();
-            columnBase.Design(basePlateInput, LoadsList, out designResults);
+            columnBase.Design(basePlateInput, loadsList, out designResults, out report1);
             designResult = DesignResult.GetCritical(designResults);
 
             if (designResult.Succeed)
             {
-                CreateInputReport(basePlateInput, LoadsList);
-                CreateOutputReport(basePlateInput, LoadsList, designResults);
+                CreateInputReport(basePlateInput, loadsList);
+                CreateOutputReport(basePlateInput, loadsList, designResults);
                 var shortDesignReport = CreateShortReport(basePlateInput, designResult);
 
                 if (designResult.WarningMessages.Count > 0 || warnings.Length > 0)
@@ -1398,7 +1448,7 @@ namespace Mono_Base_Plate.Forms
 
             report.AppendLine();
 
-            report.AppendLine("(Column)");
+            report.AppendLine($"(Column)");
             report.AppendLine($"       Section: {basePlateInput.Sec.Name,10}");
             report.AppendLine($"             d: {basePlateInput.Sec.h,10:N2} mm");
             report.AppendLine($"            bf: {basePlateInput.Sec.bf,10:N2} mm");
@@ -1406,18 +1456,18 @@ namespace Mono_Base_Plate.Forms
             report.AppendLine($"            tw: {basePlateInput.Sec.tw,10:N2} mm");
 
             report.AppendLine();
-            report.AppendLine("(Base Plate Dimensions)");
+            report.AppendLine($"(Base Plate Dimensions)");
             report.AppendLine($"             N: {basePlateInput.N,10:N0}" + " mm");
             report.AppendLine($"             B: {basePlateInput.B,10:N0}" + " mm");
             report.AppendLine();
 
-            report.AppendLine("(Pedestal Dimensions)");
+            report.AppendLine($"(Pedestal Dimensions)");
             report.AppendLine($"            Np: {basePlateInput.Np,10:N0}" + " mm");
             report.AppendLine($"            Bp: {basePlateInput.Bp,10:N0}" + " mm");
             report.AppendLine($"            Hp: {basePlateInput.Hp,10:N0}" + " mm");
             report.AppendLine();
 
-            report.AppendLine("(Base Plate Eccentricity)");
+            report.AppendLine($"(Base Plate Eccentricity)");
             report.AppendLine($"          Necc: {basePlateInput.N_BPecc,10:N2}" + " mm");
             report.AppendLine($"          Becc: {basePlateInput.B_BPecc,10:N2}" + " mm");
             report.AppendLine();
@@ -1783,131 +1833,316 @@ namespace Mono_Base_Plate.Forms
         //    }
         //}
 
+        //private int SaveProject1(string fileName)
+        //{
+        //    var loads = new List<Load>();
+        //    for (var i = 0; i < dgvLoadCombo.RowCount; i++)
+        //    {
+        //        if (dgvLoadCombo.Rows[i].Cells[colLoadCombination.Index].Value != null)
+        //        {
+        //            if (double.TryParse(dgvLoadCombo.Rows[i].Cells[colPu.Index].Value.ToString().Trim(), out var Pu)
+        //                && double.TryParse(dgvLoadCombo.Rows[i].Cells[colVu.Index].Value.ToString().Trim(), out var Vu)
+        //                && double.TryParse(dgvLoadCombo.Rows[i].Cells[colMu.Index].Value.ToString().Trim(), out var Mu))
+        //            {
+        //                loads.Add(new Load
+        //                {
+        //                    Name = dgvLoadCombo.Rows[i].Cells[colLoadCombination.Index].Value.ToString(),
+        //                    Vu = Vu,
+        //                    Pu = Pu,
+        //                    Mu = Mu,
+        //                });
+        //            }
+        //            else
+        //            {
+        //                break;
+        //            }
+        //        }
+        //    }
+
+        //    var report = new SaveData
+        //    {
+        //        ApplicationName = "Mono Base Plate Design",
+        //        Date = DateTime.Now.ToString("yyyy-MM-dd"),
+        //        Time = DateTime.Now.ToString("HH:mm:ss"),
+        //        Version = Application.ProductVersion,
+        //        CompanyName = txtProject.Text,
+        //        ProjectName = txtProject.Text,
+        //        EngineerName = txtEngineer.Text,
+        //        Description = txtDescription.Text,
+        //        Notes = txtNotes.Text.Replace("\r\n", NewLineString),
+        //        Section = JsonConvert.DeserializeObject<Save.Section>(JsonConvert.SerializeObject(SectionIFactory.Items[SectionIndex])),
+        //        BasePlate = new BasePlate()
+        //        {
+        //            N = txt_N.Text,
+        //            B = txt_B.Text,
+        //        },
+        //        Pedestal = new Pedestal()
+        //        {
+        //            Np = double.Parse(txt_Np.Text),
+        //            Bp = double.Parse(txt_Bp.Text),
+        //            Hp = double.Parse(txt_Hp.Text),
+        //            Cover = double.Parse(txtClearCover.Text),
+        //        },
+        //        BasePlateEccentricity = new BasePlateEccentricity()
+        //        {
+        //            Necc = double.Parse(txt_N_BPecc.Text),
+        //            Becc = double.Parse(txt_B_BPecc.Text),
+        //        },
+        //        RodsDistance = new RodsDistance()
+        //        {
+        //            a_N = double.Parse(txt_aN.Text),
+        //            a_B = double.Parse(txt_aB.Text),
+        //        },
+        //        LoadEccentricity = new LoadEccentricity()
+        //        {
+        //            l_N = 0,
+        //            l_B = 0,
+        //        },
+        //        ConcreteMaterial = new ConcreteMaterial()
+        //        {
+        //            fc = double.Parse(txt_fc.Text),
+        //            fyr = double.Parse(txt_fyr.Text),
+        //            fyrs = double.Parse(txt_fyrs.Text),
+        //        },
+        //        PlateSteelMaterial = new SteelMaterial()
+        //        {
+        //            fy = double.Parse(txt_fyp.Text)
+        //        },
+        //        ColumnSteelMaterial = new SteelMaterial()
+        //        {
+        //            fy = double.Parse(txt_fyc.Text)
+        //        },
+        //        BoltMaterial = new Save.BoltMaterial()
+        //        {
+        //            Name = cboAnchorBoltMaterial.SelectedItem.ToString(),
+        //            fyb = double.Parse(txt_fyb.Text),
+        //            fub = double.Parse(txt_fub.Text),
+        //        },
+        //        Bolt = new Save.Bolt()
+        //        {
+        //            nbN = (int) nudBolts_nN.Value,
+        //            nbB = (int) nudBolts_nB.Value,
+        //            BoltName = cboBolts.SelectedItem.ToString(),
+        //            ThreadsExcluded = Convert.ToInt32(chkThreadeExcluded.Checked)
+        //        },
+        //        Rod = new Rod()
+        //        {
+        //            nrN = (int) nud_nrN.Value,
+        //            nrB = (int) nud_nrB.Value,
+        //            dr = (int) cbo_dr.SelectedItem,
+        //        },
+        //        RebarMaterial = new Save.RebarMaterial()
+        //        {
+        //            drs = (int) cbo_drs.SelectedItem,
+        //            nrs = (int) nud_nrs.Value,
+        //            rsS = txt_rsS.Text,
+        //        },
+        //        Stiffener = new Save.Stiffener()
+        //        {
+        //            Type = (rdoStiffnerNone.Checked
+        //                ? StiffenerType.Type1
+        //                : rdoStiffnerType1.Checked
+        //                    ? StiffenerType.Type2
+        //                    : rdoStiffnerType2.Checked
+        //                        ? StiffenerType.Type3
+        //                        : rdoStiffnerType3.Checked
+        //                            ? StiffenerType.Type4
+        //                            : StiffenerType.Type5),
+
+        //            hs = double.Parse(txt_hs.Text),
+        //        },
+        //        BuiltUpGroutPad = Convert.ToInt32(chkBuiltUpGroutPad.Checked),
+        //        GroutThickness = Convert.ToDouble(txtGroutThickness.Text),
+        //        ShearResisting = new Save.ShearResisting()
+        //        {
+        //            Type = rdoShearByAnchorBolt.Checked
+        //                ? "Bolts"
+        //                : "ShearKey",
+        //            Property = new ShearKeyProperty()
+        //            {
+        //                ShearKeyHeight = txtShearKeyHeight.Text,
+        //                ShearKeySection = new ShearKeySection()
+        //                {
+        //                    Type = rdoShearKeyPipe.Checked
+        //                        ? "PIPE"
+        //                        : rdoShearKeyWideFlange.Checked
+        //                            ? "WideFlange"
+        //                            : "Tube",
+
+        //                    Profile = rdoShearKeyPipe.Checked
+        //                        ? cboShearKeyPipe.SelectedItem.ToString()
+        //                        : rdoShearKeyWideFlange.Checked
+        //                            ? cboShearKeyWideFlange.SelectedItem.ToString()
+        //                            : txtOutsideLength.Text + " " + txtFlangeThickness.Text,
+        //                    Orientation = rdoShearKeyWideFlangeMajor.Checked ? "Major" : "Minor",
+        //                }
+        //            }
+        //        },
+        //        Weld = new Save.Weld()
+        //        {
+        //            Type = rdoWeldCJP.Checked
+        //                ? "CJP"
+        //                : "Fillet",
+        //            Property = new WeldProperty()
+        //            {
+        //                WeldUltimateStregth = txt_fuw.Text,
+        //                WeldCheckCoeff = double.Parse(cboWeldCheck.SelectedItem.ToString()),
+        //                WeldSize = int.Parse(txtWeldSizeBasePlate.Text),
+        //            }
+        //        },
+        //        Loads = loads,
+        //        DesignMethod = rdoDesignMethodASCE7_LRFD.Checked
+        //            ? "ASCE7-2010 LRFD"
+        //            : "ASCE7-2010 ASD",
+
+        //    };
+
+        //    try
+        //    {
+        //        File.WriteAllText(fileName, JsonConvert.SerializeObject(report));
+
+        //        IsFileChanged = false;
+
+        //        return 0;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        MessageBox.Show(ex.Message, Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        //        return 99;
+        //    }
+        //}
+
         private int SaveProject(string fileName)
         {
             var report = new StringBuilder();
-            report.AppendLine("Mono Base Plate Design");
-            report.AppendLine("Mojtaba Kaimi");
+            report.AppendLine($"Mono Base Plate Design");
+            report.AppendLine($"Mojtaba Kaimi");
             report.AppendLine();
 
-            report.AppendLine("Date : " + DateTime.Now.Date);
-            report.AppendLine("Time : " + DateTime.Now.ToLongTimeString());
+            report.AppendLine($"Date : {DateTime.Now.Date}");
+            report.AppendLine($"Time : {DateTime.Now.ToLongTimeString()}");
             report.AppendLine();
 
-            report.AppendLine("ProgramVersion : " + Application.ProductVersion);
+            report.AppendLine($"ProgramVersion : {Application.ProductVersion}");
             report.AppendLine();
 
-            report.AppendLine("CompanyName : " + txtCompany.Text);
-            report.AppendLine("ProjectName : " + txtProject.Text);
-            report.AppendLine("EngineerName : " + txtEngineer.Text);
-            report.AppendLine("Description : " + txtDescription.Text);
-            report.AppendLine("Notes : " + txtNotes.Text.Replace("\r\n", NewLineString));
+            report.AppendLine($"CompanyName : {txtCompany.Text}");
+            report.AppendLine($"ProjectName : {txtProject.Text}");
+            report.AppendLine($"EngineerName : {txtEngineer.Text}");
+            report.AppendLine($"Description : {txtDescription.Text}");
+            report.AppendLine($"Notes : {txtNotes.Text.Replace("\r\n", NewLineString)}");
             report.AppendLine();
 
-            report.AppendLine("SectionName : " + SectionIFactory.Items[SectionIndex].Name);
+            report.AppendLine($"SectionName : {SectionIFactory.Items[SectionIndex].Name}");
 
-            report.AppendLine("$BasePlate");
-            report.AppendLine("N : " + txt_N.Text);
-            report.AppendLine("B : " + txt_B.Text);
+            report.AppendLine($"$BasePlate");
+            report.AppendLine($"N : {txt_N.Text}");
+            report.AppendLine($"B : {txt_B.Text}");
 
-            report.AppendLine("$Pedestal");
-            report.AppendLine("Np : " + txt_Np.Text);
-            report.AppendLine("Bp : " + txt_Bp.Text);
-            report.AppendLine("Hp : " + txt_Hp.Text);
+            report.AppendLine($"$Pedestal");
+            report.AppendLine($"Np : {txt_Np.Text}");
+            report.AppendLine($"Bp : {txt_Bp.Text}");
+            report.AppendLine($"Hp : {txt_Hp.Text}");
 
-            report.AppendLine("Cover : " + txtClearCover.Text);
+            report.AppendLine($"Cover : {txtClearCover.Text}");
 
-            report.AppendLine("$BasePlateEccentricity");
-            report.AppendLine("Necc : " + txt_N_BPecc.Text);
-            report.AppendLine("Becc : " + txt_B_BPecc.Text);
+            report.AppendLine($"$BasePlateEccentricity");
+            report.AppendLine($"Necc : {txt_N_BPecc.Text}");
+            report.AppendLine($"Becc : {txt_B_BPecc.Text}");
 
-            report.AppendLine("$RodsDistance");
-            report.AppendLine("a_N : " + txt_aN.Text);
-            report.AppendLine("a_B : " + txt_aB.Text);
+            report.AppendLine($"$RodsDistance");
+            report.AppendLine($"a_N : {txt_aN.Text}");
+            report.AppendLine($"a_B : {txt_aB.Text}");
 
-            report.AppendLine("$LoadEccentricity");
-            report.AppendLine("l_N : " + 0);
-            report.AppendLine("l_B : " + 0);
+            report.AppendLine($"$LoadEccentricity");
+            report.AppendLine($"l_N : {0}");
+            report.AppendLine($"l_B : {0}");
 
-            report.AppendLine("$Material");
-            report.AppendLine("fc : " + txt_fc.Text);
-            report.AppendLine("fyr : " + txt_fyr.Text);
-            report.AppendLine("fyrs : " + txt_fyrs.Text);
-            report.AppendLine("fyp : " + txt_fyp.Text);
-            report.AppendLine("fyc : " + txt_fyc.Text);
-            report.AppendLine("fyb : " + txt_fyb.Text);
-            report.AppendLine("fub : " + txt_fub.Text);
+            report.AppendLine($"$Material");
+            report.AppendLine($"fc : {txt_fc.Text}");
 
-            report.AppendLine("");
-            report.AppendLine("nbN : " + nudBolts_nN.Value);
-            report.AppendLine("nbB : " + nudBolts_nB.Value);
-            report.AppendLine("Bolt : " + cboBolts.SelectedItem);
+            //report.AppendLine($"fyr : " + txt_fyr.Text);
+            //report.AppendLine($"fyrs : " + txt_fyrs.Text);
 
-            report.AppendLine("");
-            report.AppendLine("nrN : " + nud_nrN.Value);
-            report.AppendLine("nrB : " + nud_nrB.Value);
-            report.AppendLine("dr : " + cbo_dr.SelectedItem);
+            report.AppendLine($"LongitudinalRebarMaterial : {cboLongitudinalRebarMaterial.SelectedItem}");
+            report.AppendLine($"TransverseRebarMaterial : {cboTransverseRebarMaterial.SelectedItem}");
+            
+            //report.AppendLine($"fyp : " + txt_fyp.Text);
+            report.AppendLine($"PlateSteelMaterial : {cboPlateSteelMaterial.SelectedItem}");
 
-            report.AppendLine("");
-            report.AppendLine("drs : " + cbo_drs.SelectedItem);
-            report.AppendLine("nrs : " + nud_nrs.Value);
-            report.AppendLine("rsS : " + txt_rsS.Text);
+
+            //report.AppendLine($"fyc : " + txt_fyc.Text);
+            report.AppendLine($"ColumnSteelMaterial : {cboColumnSteelMaterial.SelectedItem}");
+
+            report.AppendLine($"AnchorBoltMaterial : {cboAnchorBoltMaterial.SelectedItem}");
+            report.AppendLine($"fyb : {txt_fyb.Text}");
+            report.AppendLine($"fub : {txt_fub.Text}");
+
+            report.AppendLine($"");
+            report.AppendLine($"nbN : {nudBolts_nN.Value}");
+            report.AppendLine($"nbB : {nudBolts_nB.Value}");
+            report.AppendLine($"Bolt : {cboBolts.SelectedItem}");
+
+            report.AppendLine($"");
+            report.AppendLine($"nrN : {nud_nrN.Value}");
+            report.AppendLine($"nrB : {nud_nrB.Value}");
+            report.AppendLine($"dr : {cbo_dr.SelectedItem}");
+
+            report.AppendLine($"");
+            report.AppendLine($"drs : {cbo_drs.SelectedItem}");
+            report.AppendLine($"nrs : {nud_nrs.Value}");
+            report.AppendLine($"rsS : {txt_rsS.Text}");
             report.AppendLine();
 
-            report.AppendLine("Stiffener : " + (rdoStiffnerNone.Checked
-                                  ? "0"
-                                  : rdoStiffnerType1.Checked
-                                      ? "1"
-                                      : rdoStiffnerType2.Checked
-                                          ? "2"
-                                          : rdoStiffnerType3.Checked
-                                              ? "3"
-                                              : "0"));
+            report.AppendLine($"Stiffener : {(rdoStiffnerNone.Checked ? "0" : rdoStiffnerType1.Checked ? "1" : rdoStiffnerType2.Checked ? "2" : rdoStiffnerType3.Checked ? "3" : "0")}");
 
-            report.AppendLine("hs : " + txt_hs.Text);
+            report.AppendLine($"hs : {txt_hs.Text}");
             report.AppendLine();
 
-            report.AppendLine("ThreadsExcluded : " + Convert.ToInt32(chkThreadeExcluded.Checked));
-            report.AppendLine("BuiltUpGroutPad : " + Convert.ToInt32(chkBuiltUpGroutPad.Checked));
+            report.AppendLine($"ThreadsExcluded : {Convert.ToInt32(chkThreadeExcluded.Checked)}");
+            report.AppendLine($"BuiltUpGroutPad : {Convert.ToInt32(chkBuiltUpGroutPad.Checked)}");
             report.AppendLine();
 
-            report.AppendLine("GroutThickness : " + Convert.ToDouble(txtGroutThickness.Text));
+            report.AppendLine($"GroutThickness : {Convert.ToDouble(txtGroutThickness.Text)}");
             report.AppendLine();
 
             if (rdoShearByAnchorBolt.Checked)
             {
-                report.AppendLine("ShearResisting : " + "Bolts");
+                report.AppendLine("ShearResisting : Bolts");
             }
             else if (rdoShearByShearKey.Checked)
             {
-                report.AppendLine("ShearResisting : " + "ShearKey");
-                report.AppendLine("ShearKeyHeight : " + txtShearKeyHeight.Text);
+                report.AppendLine("ShearResisting : ShearKey");
+                report.AppendLine($"ShearKeyHeight : {txtShearKeyHeight.Text}");
 
                 if (rdoShearKeyPipe.Checked)
                 {
-                    report.AppendLine("ShearKeySection : Pipe " + cboShearKeyPipe.SelectedItem);
+                    report.AppendLine($"ShearKeySection : Pipe {cboShearKeyPipe.SelectedItem}");
                 }
                 else if (rdoShearKeyWideFlange.Checked)
                 {
-                    report.AppendLine("ShearKeySection : WideFlange " + cboShearKeyWideFlange.SelectedItem + " " + (rdoShearKeyWideFlangeMajor.Checked ? "Major" : "Minor"));
+                    report.AppendLine($"ShearKeySection : WideFlange {cboShearKeyWideFlange.SelectedItem} {(rdoShearKeyWideFlangeMajor.Checked ? "Major" : "Minor")}");
                 }
                 else if (rdoShearKeyTube.Checked)
                 {
-                    report.AppendLine("ShearKeySection : Tube " + txtOutsideLength.Text + " " + txtFlangeThickness.Text);
+                    report.AppendLine($"ShearKeySection : Tube {txtOutsideLength.Text} {txtFlangeThickness.Text}");
                 }
             }
 
             report.AppendLine();
             if (rdoWeldCJP.Checked)
             {
-                report.AppendLine("WeldType : " + "CJP");
+                report.AppendLine("WeldType : CJP");
             }
             else if (rdoWeldFilletWeld.Checked)
             {
-                report.AppendLine("WeldType : " + "Fillet");
-                report.AppendLine("WeldUltimateStregth : " + txt_fuw.Text);
-                report.AppendLine("WeldCheckCoeff : " + cboWeldCheck.SelectedItem);
-                report.AppendLine("WeldSize : " + txtWeldSizeBasePlate.Text);
+                report.AppendLine("WeldType : Fillet");
+                //report.AppendLine($"WeldUltimateStregth : " + txt_fuw.Text);
+                report.AppendLine($"WeldMaterial : {cboWeldMaterial.SelectedItem}");
+
+
+                report.AppendLine($"WeldCheckCoeff : {cboWeldCheck.SelectedItem}");
+                report.AppendLine($"WeldSize : {txtWeldSizeBasePlate.Text}");
             }
 
             report.AppendLine();
@@ -1928,7 +2163,7 @@ namespace Mono_Base_Plate.Forms
                 }
             }
 
-            report.AppendLine("");
+            report.AppendLine($"");
 
             //strText &= "DesignMethod : " && {"LRFD", "ASD"}(cboDesignMethod.SelectedIndex) && vbNewLine
 
@@ -1940,7 +2175,7 @@ namespace Mono_Base_Plate.Forms
             {
                 report.Append("DesignMethod : ASCE7-2010 ASD");
             }
-            report.AppendLine("");
+            report.AppendLine($"");
 
             try
             {
@@ -2910,17 +3145,16 @@ namespace Mono_Base_Plate.Forms
 
         private void CalculationSheetToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            throw new NotImplementedException();
-            const string templateFilePath = "Baseplate Template.docx";
-            const string finalFilePath = "File1.docx";
+	        var content = report1.ToString();
+	        var fileName = @"D:\BasePlate.html";
 
-            //MessageBox.Show(@"This option will be available in next version", Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+			System.IO.File.WriteAllText(fileName, content);
 
-            var columnBases = new ColumnBase();
-            var input = GetInputData(out _, out _);
-            //columnBases.Design(input, loadList, out var rets);
-            
-            //wordCreator.CreateCalculationSheet(System.IO.Path.GetFullPath("Baseplate Template.docx"), System.IO.Path.GetFullPath("NewFile.docx"));
+			if (MessageBox.Show("Do you want to open the file?", Application.ProductName, MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1) == DialogResult.Yes)
+			{
+				System.Diagnostics.Process.Start(fileName);
+			}
+
         }
 
         private void PrintCalculationSheetToolStripMenuItem_Click(object sender, EventArgs e)
@@ -3072,23 +3306,27 @@ namespace Mono_Base_Plate.Forms
 
         private void cboAnchorBoltMaterial_SelectedIndexChanged(object sender, EventArgs e)
         {
-            var anchorBolt = AnchorBoltMaterialFactory.Items.Single(p => p.Name == cboAnchorBoltMaterial.SelectedItem.ToString());
+            txt_fyb.ReadOnly = cboAnchorBoltMaterial.SelectedItem.ToString() != UserDefined;
+            txt_fub.ReadOnly = cboAnchorBoltMaterial.SelectedItem.ToString() != UserDefined;
 
-            var fy = Pressure
-                .From(anchorBolt.Fyb, PressureUnit.Megapascal)
-                .As(PressureUnit.KilogramForcePerSquareCentimeter);
+            if (cboAnchorBoltMaterial.SelectedItem.ToString() != UserDefined)
+            {
+                var anchorBolt = AnchorBoltMaterialFactory.Items.Single(p => p.Name == cboAnchorBoltMaterial.SelectedItem.ToString());
 
-            var fu = Pressure
-                .From(anchorBolt.Fub, PressureUnit.Megapascal)
-                .As(PressureUnit.KilogramForcePerSquareCentimeter);
+                var fy = Pressure
+                    .From(anchorBolt.Fyb, PressureUnit.Megapascal)
+                    .As(PressureUnit.KilogramForcePerSquareCentimeter);
 
-            fy = anchorBolt.Fyb * 10;
-            fu = anchorBolt.Fub * 10;
+                var fu = Pressure
+                    .From(anchorBolt.Fub, PressureUnit.Megapascal)
+                    .As(PressureUnit.KilogramForcePerSquareCentimeter);
 
-            txt_fyb.Text = $@"{fy:F0}";
-            txt_fub.Text = $@"{fu:F0}";
+                fy = anchorBolt.Fyb * 10;
+                fu = anchorBolt.Fub * 10;
 
-            var anchorBolt11 = AnchorBoltMaterialFactory.Items.Single(p => p.Name == cboAnchorBoltMaterial.SelectedItem.ToString());
+                txt_fyb.Text = $@"{fy:F0}";
+                txt_fub.Text = $@"{fu:F0}";
+            }
         }
 
         private void cboShearKeyWideFlange_SelectedIndexChanged(object sender, EventArgs e)
@@ -3096,6 +3334,111 @@ namespace Mono_Base_Plate.Forms
             if (IsRealTimeDesignEnable)
             {
                 RunDesign();
+            }
+        }
+
+        private void cboLongitudinalRebarMaterial_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var material = RebarMaterialFactory.Items.Single(p => p.Name == cboLongitudinalRebarMaterial.SelectedItem.ToString());
+            lblLongitudinalRebar.Text = $"Fy={material.Fy} MPa, Fu={material.Fu} MPa";
+
+            try
+            {
+                IsFileChanged = true;
+                rtbResult.Clear();
+
+                if (IsRealTimeDesignEnable)
+                {
+                    RunDesign();
+                }
+            }
+            catch
+            {
+                ;
+            }
+        }
+
+        private void cboTransverseRebarMaterial_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                IsFileChanged = true;
+                rtbResult.Clear();
+
+                var material = RebarMaterialFactory.Items.Single(p => p.Name == cboTransverseRebarMaterial.SelectedItem.ToString());
+                lblTransverseRebar.Text = $"Fy={material.Fy} MPa, Fu={material.Fu} MPa";
+
+                if (IsRealTimeDesignEnable)
+                {
+                    RunDesign();
+                }
+            }
+            catch
+            {
+                ;
+            }
+        }
+
+        private void cboPlateSteelMaterial_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                IsFileChanged = true;
+                rtbResult.Clear();
+
+                var material = SteelMaterialFactory.Items.Single(p => p.Name == cboPlateSteelMaterial.SelectedItem.ToString());
+                lblPlateSteelMaterial.Text = $"Fy: {material.Fy} MPa, Fu: {material.Fu} MPa";
+
+                if (IsRealTimeDesignEnable)
+                {
+                    RunDesign();
+                }
+            }
+            catch
+            {
+                ;
+            }
+        }
+
+        private void cboColumnSteelMaterial_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                IsFileChanged = true;
+                rtbResult.Clear();
+
+                var material = SteelMaterialFactory.Items.Single(p => p.Name == cboColumnSteelMaterial.SelectedItem.ToString());
+                lblColumnSteelMaterial.Text = $"Fy: {material.Fy} MPa, Fu: {material.Fu} MPa";
+
+                if (IsRealTimeDesignEnable)
+                {
+                    RunDesign();
+                }
+            }
+            catch
+            {
+                ;
+            }
+        }
+
+        private void cboWeldMaterial_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                IsFileChanged = true;
+                rtbResult.Clear();
+
+                var material = WeldMaterialFactory.Items.Single(p => p.Name == cboWeldMaterial.SelectedItem.ToString());
+                lblWeldMaterial.Text = $"Fu: {material.Fu} MPa";
+
+                if (IsRealTimeDesignEnable)
+                {
+                    RunDesign();
+                }
+            }
+            catch
+            {
+                ;
             }
         }
     }

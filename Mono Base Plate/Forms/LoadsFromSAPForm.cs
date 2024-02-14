@@ -4,14 +4,14 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
-using SAP2000v19;
+using SAP2000 = SAP2000v19;
 
 namespace Mono_Base_Plate.Forms
 {
     public partial class frmLoadsFromSAP : System.Windows.Forms.Form
     {
-        private cOAPI sapObject;
-        private cSapModel sapModel;
+        private SAP2000.cOAPI sapObject;
+        private SAP2000.cSapModel sapModel;
 
         private List<Points> pointList;
         private List<Points> restraintPointList;
@@ -35,7 +35,7 @@ namespace Mono_Base_Plate.Forms
         {
             try
             {
-                sapObject = Marshal.GetActiveObject("CSI.SAP2000.API.SapObject") as cOAPI;
+                sapObject = Marshal.GetActiveObject("CSI.SAP2000.API.SapObject") as SAP2000.cOAPI;
                 if (sapObject == null)
                 {
                     MessageBox.Show(@"Can not attach to SAP2000 program", Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -87,7 +87,7 @@ namespace Mono_Base_Plate.Forms
                     ProgramPath = openFileDialog.FileName;
                 }
 
-                cHelper myHelper = new Helper();
+                SAP2000.cHelper myHelper = new SAP2000.Helper();
                 sapObject = myHelper.CreateObject(ProgramPath);
 
                 if (sapObject.ApplicationStart() != 0)
@@ -127,10 +127,11 @@ namespace Mono_Base_Plate.Forms
             lbSpecialLoadCombos.Items.Clear();
 
             Application.DoEvents();
-
+            
             try
             {
-                if (GetJointNames() != 0 || GetLoadCombos() != 0)
+                var ret1 = GetJointNames();
+                if (ret1 != 0 || GetLoadCombos() != 0)
                 {
                     MessageBox.Show(@"An error has been occurred", Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
@@ -216,7 +217,7 @@ namespace Mono_Base_Plate.Forms
 
                 var ret = sapModel.Analyze.RunAnalysis();
 
-                sapModel.SetPresentUnits(eUnits.kgf_m_C);
+                sapModel.SetPresentUnits(SAP2000.eUnits.kgf_m_C);
 
                 //Dim DOF() As Boolean = {True, True, True, False, False, False}
                 //ret = SapModel.SelectObj.SupportedPoints(DOF)
@@ -228,7 +229,7 @@ namespace Mono_Base_Plate.Forms
                     sapModel.SelectObj.ClearSelection();
                     for (var j = 0; j < basePlateTypeList[i].JointList.Count; j++)
                     {
-                        sapModel.PointObj.SetSelected(basePlateTypeList[i].JointList[j], true, eItemType.Objects);
+                        sapModel.PointObj.SetSelected(basePlateTypeList[i].JointList[j], true, SAP2000.eItemType.Objects);
                     }
 
                     for (var j = 0; j <= 1; j++)
@@ -256,7 +257,7 @@ namespace Mono_Base_Plate.Forms
                                 break;
                         }
 
-                        ret = sapModel.Results.JointReact("", eItemTypeElm.SelectionElm, ref numberResults, ref obj, ref elm, ref loadCase, ref stepType, ref stepNum, ref f1, ref f2,
+                        ret = sapModel.Results.JointReact("", SAP2000.eItemTypeElm.SelectionElm, ref numberResults, ref obj, ref elm, ref loadCase, ref stepType, ref stepNum, ref f1, ref f2,
                         ref f3, ref m1, ref m2, ref m3);
 
                         if (ret != 0)
@@ -283,15 +284,27 @@ namespace Mono_Base_Plate.Forms
                         }
                     }
 
-                    var FileName = Path.GetDirectoryName(sfd.FileName);
-                    if (FileName != null && !FileName.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                    var fileName = Path.GetDirectoryName(sfd.FileName);
+                    if (fileName != null && !fileName.EndsWith(Path.DirectorySeparatorChar.ToString()))
                     {
-                        FileName += Path.DirectorySeparatorChar;
+                        fileName += Path.DirectorySeparatorChar;
                     }
 
-                    FileName += Path.GetFileNameWithoutExtension(sfd.FileName) + " - " + basePlateTypeList[i].Name + " [" + basePlateTypeList[i].Column + "]" + (basePlateTypeList[i].BraceX || basePlateTypeList[i].BraceY ? " {BR}" : "") + Path.GetExtension(sfd.FileName);
+                    var brace = basePlateTypeList[i].BraceX || basePlateTypeList[i].BraceY
+                        ? " {BR}"
+                        : "";
 
-                    File.WriteAllText(FileName, results.ToString());
+                    brace = basePlateTypeList[i].BraceX && basePlateTypeList[i].BraceY
+                        ? " {BR-XY}"
+                        : basePlateTypeList[i].BraceX && !basePlateTypeList[i].BraceY
+                            ? " {BR-X}"
+                            : !basePlateTypeList[i].BraceX && basePlateTypeList[i].BraceY
+                                ? " {BR-Y}"
+                                : "";
+
+                    fileName += $"{Path.GetFileNameWithoutExtension(sfd.FileName)} - {basePlateTypeList[i].Name} [{basePlateTypeList[i].Column}]{brace}{Path.GetExtension(sfd.FileName)}";
+
+                    File.WriteAllText(fileName, results.ToString());
                 }
 
                 sapModel.SelectObj.ClearSelection();
@@ -300,7 +313,7 @@ namespace Mono_Base_Plate.Forms
             }
         }
 
-        private int GetSectionGeneralProperty(string FrameName, ref SectionProperties secProp)
+        private int GetSectionGeneralProperty(string FrameName, out SectionProperties secProp)
         {
             try
             {
@@ -358,8 +371,9 @@ namespace Mono_Base_Plate.Forms
             }
             catch (Exception e)
             {
-                sapModel.SetPresentUnits(eUnits.kgf_cm_C);
+                sapModel.SetPresentUnits(SAP2000.eUnits.kgf_cm_C);
 
+                secProp = null;
                 return 1;
             } 
         }
@@ -450,7 +464,10 @@ namespace Mono_Base_Plate.Forms
                     Name = myName[i]
                 };
 
-                GetSectionGeneralProperty(fr.Name, ref fr.SectionProp);
+                
+                GetSectionGeneralProperty(fr.Name, out var sectionProperties);
+
+                fr.SectionProp = sectionProperties;
 
                 fr.Point1Index = pointList.FindIndex(p => p.Name == point1);
                 fr.Point2Index = pointList.FindIndex(p => p.Name == point2);
@@ -547,20 +564,22 @@ namespace Mono_Base_Plate.Forms
                 return 5001;
             }
 
-            var braceDefault = MessageBox.Show(@"Seprate types for base plate with/without brace in base?", Application.ProductName, MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1) != DialogResult.Yes;
+            var braceDefault = MessageBox.Show(@"Separate types for base plate with/without brace in base?", Application.ProductName, MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1) != DialogResult.Yes;
 
             var index = 0;
             for (var i = 0; i < restraintPointList.Count; i++)
             {
                 var bpType = new BasePlateTypes();
 
-                for (var j = 0; j < restraintPointList[i].FrameList.Count; j++)
+                foreach (var frame in restraintPointList[i].FrameList)
                 {
-                    if (restraintPointList[i].FrameList[j].FrameType == FrameTypes.Column)
+                    if (frame.FrameType != FrameTypes.Column)
                     {
-                        bpType.Column = restraintPointList[i].FrameList[j].ProfileSection;
-                        break;
+                        continue;
                     }
+
+                    bpType.Column = frame.ProfileSection;
+                    break;
                 }
 
                 bpType.BraceX = braceDefault;
@@ -661,15 +680,21 @@ namespace Mono_Base_Plate.Forms
         #region
         private class Frames
         {
-            public string Name;
-            public string Point1;
-            public string Point2;
-            public int Point1Index = -1;
-            public int Point2Index = -1;
-            public string ProfileSection;
+            public string Name { get; set; }
 
-            public FrameTypes FrameType = FrameTypes.None;
-            public SectionProperties SectionProp;
+            public string Point1 { get; set; }
+
+            public string Point2 { get; set; }
+
+            public int Point1Index { get; set; } = -1;
+
+            public int Point2Index { get; set; } = -1;
+
+            public string ProfileSection { get; set; }
+
+            public FrameTypes FrameType { get; set; } = FrameTypes.None;
+
+            public SectionProperties SectionProp { get; set; }
         }
 
         private class SectionProperties

@@ -12,6 +12,9 @@ using System.Linq;
 using Base_Plate_Engine.Common.Mathematics;
 using Base_Plate_Engine.Common.Section.Shapes;
 using EngineeringUnits;
+using Mojk.HTML;
+using Mojk.HTML.Elements;
+using Mojk.HTML.Extensions;
 using MojStruct.Concrete.ACI.ACI318_19.C10_Columns;
 using MojStruct.Concrete.ACI.ACI318_19.C19_Concrete;
 using MojStruct.Concrete.ACI.Entities.Rebar;
@@ -20,7 +23,9 @@ namespace Base_Plate_Engine.Design
 {
     public sealed class ColumnBase
     {
-        private double mm { get; set; }
+	    private HtmlDocument document;
+
+		private double mm { get; set; }
         private double nn { get; set; }
        
         private double Alpha1(double a, double b)
@@ -83,15 +88,40 @@ namespace Base_Plate_Engine.Design
             return Alpha2Y[Alpha2Y.Length - 1];
         }
 
-        public int Design(BasePlateInput basePlateInput, IList<BasePlateLoad> loadsList, out DesignResult[] designResults)
+        public int Design(BasePlateInput basePlateInput, IList<BasePlateLoad> loadsList, out DesignResult[] designResults, out HtmlDocument report)
         {
-            var results = new DesignResult[loadsList.Count];
+	        document = new HtmlDocument("");
+
+			document.AddRawHeading($"<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css\" rel=\"stylesheet\" integrity=\"sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC\" crossorigin=\"anonymous\">");
+			document.AddRawHeading($"<script type=\"text/javascript\" id=\"MathJax-script\" async src=\"https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js\"></script>");
+
+			document.AddClass("body", new Dictionary<string, string>()
+			{
+				{"font-size", "12px"},
+			});
+
+			document.AddClass(".formula > div", new Dictionary<string, string>()
+			{
+				{ "margin", "auto 0" }
+			});
+			document.AddClass(".formula > div:last-child", new Dictionary<string, string>()
+			{
+				{ "text-align", "right!important" },
+			});
+			document.AddClass(".h1", new KeyValuePair<string, string>("color", "red"));
+
+			var results = new DesignResult[loadsList.Count];
             
             mm = (basePlateInput.N - 0.95 * basePlateInput.Sec.h) / 2;
             nn = (basePlateInput.B - 0.8 * basePlateInput.Sec.bf) / 2;
 
-            for (var i = 0; i < loadsList.Count; i++)
+            document.AddFormula(@$"m = \frac{{ N - 0.95 h }}{{2}} = {mm:F1} \: mm", "", "");
+            document.AddFormula(@$"n = \frac{{ B - 0.80 b_f }}{{2}} = {nn:F1} \: mm", "", "");
+
+			for (var i = 0; i < loadsList.Count; i++)
             {
+                document.AddElement(new Heading4($"Load: {loadsList[i].Name}"));
+
                 if (loadsList[i].IsWithoutMoment)
                 {
                     results[i] = Design_PV(basePlateInput, loadsList[i].Pu, loadsList[i].Vux);
@@ -148,7 +178,12 @@ namespace Base_Plate_Engine.Design
             }
             
             designResults = results;
-            return 0;
+
+            CheckAnchorBolts(basePlateInput);
+
+            report = document;
+
+			return 0;
         }
 
         public DesignResult Design(BasePlateInput basePlateInput, BasePlateLoad basePlateLoadList)
@@ -247,6 +282,9 @@ namespace Base_Plate_Engine.Design
             if (Pu > 0)
             {
                 fup = Pu / (basePlateInput.N * basePlateInput.B);
+
+                document.AddFormula(@$"f_{{up}} = \frac{{ P_u }}{{ N \times B }} = {fup:F2} \: MPa");
+
                 ret.fup = fup;
                 ret.BearingRatio = fup / basePlateInput.Fp_max;
 
@@ -867,6 +905,8 @@ namespace Base_Plate_Engine.Design
                     Nn = n1 * Anb * basePlateInput.fub;
                     var Vn = n1 * Anb * basePlateInput.fub;
 
+                    document.AddFormula(@$"N_n = n A_{{nb}} F_{{u,b}}  = {Nn / 1000:F1} \: kN");
+
                     if (Nu / (Phi_N * Nn) <= 0.2 && Vu / (Phi_V * Vn) > 0.2)
                     {
                         BoltRatio = Vu / (Phi_V * Vn);
@@ -882,7 +922,10 @@ namespace Base_Plate_Engine.Design
 
                         BoltRatio = MyMath.Max(BoltRatio, Vu / (Phi_V * Vn), Nu / (Phi_N * Nn));
                     }
-                    break;
+
+                    document.AddFormula(@$"f = min( \frac{{ V_u }}{{ {{\phi}}_v V_n }}, \frac{{ N_u }}{{ {{\phi}}_n N_n }}, \frac{{ V_u }}{{ 1.2 {{\phi}}_v V_n }} + \frac{{ N_u }}{{ 1.2 {{\phi}}_n N_n }}  ) = {BoltRatio:F3} \: MPa");
+
+					break;
                     //Ratio = (Nu1 / Nn) ^ (5 / 3) + (Vu1 / Vn) ^ (5 / 3)
             }
 
@@ -949,5 +992,60 @@ namespace Base_Plate_Engine.Design
 
             return -1;
         }
+
+        public void CheckAnchorBolts(BasePlateInput input)
+        {
+
+            //Rebars
+            var Lx = input.Np - 2 * input.Cover;
+            var Ly = input.Bp - 2 * input.Cover;
+
+            var dx = Lx / (input.nrN - 1);
+            var dy = Ly / (input.nrB - 1);
+
+			var barLocation = new List<(double, double)>();
+
+			for (var j = 0; j < input.nrB; j++)
+            {
+	            if (j == 0 || j == input.nrB - 1)
+	            {
+		            for (var i = 0; i < input.nrN; i++)
+		            {
+			            barLocation.Add((-Lx / 2 + i * dx, -Ly/2 + j * dy));
+		            }
+	            }
+	            else
+	            {
+		            barLocation.Add((-Lx / 2, -Ly / 2 + j * dy));
+		            barLocation.Add((-Lx / 2 + (input.nrN - 1) * dx, -Ly / 2 + j * dy));
+				}
+            }
+
+            //Anchor bolts
+			Lx = input.N - 2 * input.a_N;
+			Ly = input.B - 2 * input.a_B;
+
+			dx = Lx / (input.nbN - 1);
+			dy = Ly / (input.nbB - 1);
+
+			var anchorLocation = new List<(double, double)>();
+			for (var j = 0; j < input.nbB; j++)
+			{
+				if (j == 0 || j == input.nbB - 1)
+				{
+					for (var i = 0; i < input.nbN; i++)
+					{
+						barLocation.Add((-Lx / 2 + i * dx, -Ly / 2 + j * dy));
+					}
+				}
+				else
+				{
+					barLocation.Add((-Lx / 2, -Ly / 2 + j * dy));
+					barLocation.Add((-Lx / 2 + (input.nbN - 1) * dx, -Ly / 2 + j * dy));
+				}
+			}
+
+
+		}
     }
 }

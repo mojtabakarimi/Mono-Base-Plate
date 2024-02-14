@@ -41,9 +41,7 @@ namespace Base_Plate_Engine.Design
             int nbB,
             int nrN,
             int nrB, 
-            int nrS, 
-            double fnwBp,
-            double fnwSk, 
+            int nrS,
             double fuw, 
             double weldSzieBasePlate,
             double weldSizeShearKey,
@@ -93,8 +91,6 @@ namespace Base_Plate_Engine.Design
             this.nrN = nrN;
             this.nrB = nrB;
             this.nrS = nrS;
-            this.Fnw_BP = fnwBp;
-            this.Fnw_SK = fnwSk;
             this.Fuw = fuw;
             this.WeldSzie_BasePlate = weldSzieBasePlate;
             this.WeldSize_ShearKey = weldSizeShearKey;
